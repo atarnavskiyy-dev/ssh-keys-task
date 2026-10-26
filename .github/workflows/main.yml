@@ -1,56 +1,53 @@
 name: Check SSH Keys
+
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   check-ssh-keys:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Generate a token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
       - name: Checkout Repository
         uses: actions/checkout@v6
 
       - name: Set Permissions for Private Key One
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY_ONE }}
         run: |
-          echo "${{ secrets.private_key_one }}" > private_key_one
+          printf '%s\n' "$PRIVATE_KEY" > private_key_one
           chmod 400 private_key_one
 
       - name: Set Permissions for Private Key Two
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY_TWO }}
         run: |
-          echo "${{ secrets.private_key_two }}" > private_key_two
+          printf '%s\n' "$PRIVATE_KEY" > private_key_two
           chmod 400 private_key_two
-          
-      - name: Verify type of key1
+
+      - name: Verify RSA key type
         run: ssh-keygen -l -f ./keys/task1/key.pub | grep RSA
-        
-      - name: Verify lenght of key1
+
+      - name: Verify RSA key length
         run: ssh-keygen -l -f ./keys/task1/key.pub | grep 2048
-     
-      - name: Check if private key does match the public key for task1
+
+      - name: Verify RSA private and public key match
         run: |
           generated_key=$(ssh-keygen -y -f private_key_one | cut -d' ' -f 2)
-          cat ./keys/task1/key.pub | grep $generated_key
+          grep -F "$generated_key" ./keys/task1/key.pub
 
-      - name: Verify type of key2
+      - name: Verify Ed25519 key type
         run: ssh-keygen -l -f ./keys/task2/key.pub | grep ED25519
-     
-      - name: Check if private key does match the public key for task2
+
+      - name: Verify Ed25519 private and public key match
         run: |
           generated_key=$(ssh-keygen -y -f private_key_two | cut -d' ' -f 2)
-          cat ./keys/task2/key.pub | grep $generated_key
+          grep -F "$generated_key" ./keys/task2/key.pub
 
-      - name: Final Step
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: |
-          gh repo edit $GITHUB_REPOSITORY --visibility private --accept-visibility-change-consequences
+      - name: Cleanup private keys
+        if: always()
+        run: rm -f private_key_one private_key_two
+
